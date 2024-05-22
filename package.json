@@ -1,7 +1,7 @@
 {
   "name": "pixitest",
   "version": "1.0.0",
-  "description": "",
+  "description": "* `npm run start` - runs the compiler and a server at the same time in dev mode with HMR (Hot Module Replacement) 🔥. * `npm run build` - runs the compiler once and generates a production build. * `npm run build_serve` - it makes a build and serves it to port 8080.",
   "scripts": {
     "test": "jest",
     "start": "npm run clean && parcel src/index.html",
@@ -23,6 +23,11 @@
     "parcel-bundler": "1.11.0",
     "rimraf": "^2.6.2",
     "ts-jest": "^24.2.0",
-    "typescript": "^3.7.2"
-  }
+    "typescript": "^3.9.10"
+  },
+  "main": "jest.config.js",
+  "bin": {
+    "pixitest": "bin/main.10bdb33d.js"
+  },
+  "keywords": []
 }

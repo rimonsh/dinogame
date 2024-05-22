@@ -50,34 +50,48 @@ class Player {
     this.sprite.y += this.verticalSpeed * delta;
 
     for (const currentEntity of GameApp.ActiveEntities) {
-      if (currentEntity.solid && this.collidesWith(currentEntity.sprite)) {
-        GameApp.GameOver = true;
+      if (this.collidesWith(currentEntity.sprite)) {
+        if (isScrollingObject(currentEntity) && currentEntity.type === 'good') {
+          GameApp.Score += 10; // Increment score for good obstacles
+          GameApp.Stage.removeChild(currentEntity.sprite);
+          GameApp.ActiveEntities.splice(GameApp.ActiveEntities.indexOf(currentEntity), 1);
+        } else if (isScrollingObject(currentEntity) && currentEntity.type === 'bad' && currentEntity.solid) {
+          GameApp.GameOver = true;
+        }
       }
     }
   }
+}
+
+// Type guard to check if an object is ScrollingObject
+function isScrollingObject(entity: WorldObject): entity is ScrollingObject {
+  return (entity as ScrollingObject).type !== undefined;
 }
 
 class ScrollingObject {
   sprite: PIXI.AnimatedSprite;
   airborne: boolean;
   solid: boolean = true;
+  type: 'good' | 'bad'; // Add type property
 
   public constructor(
     spriteName: string,
     x: number,
     y: number,
-    isSolid: boolean
+    isSolid: boolean,
+    type: 'good' | 'bad' // Include type in the constructor
   ) {
     this.sprite = GetSprite(spriteName);
     this.sprite.y = y;
     this.sprite.anchor.set(0, 1);
     this.sprite.x = x;
     this.solid = isSolid;
+    this.type = type; // Set the type
   }
 
   public Update(delta: number) {
     let baseScrollSpeed = this.solid ?
-      GameApp.ScrollSpeed: 
+      GameApp.ScrollSpeed : 
       GameApp.ScrollSpeed - 1;
     let scrollSpeed = baseScrollSpeed + Math.min(GameApp.Score / 15.0, 1);
     this.sprite.x -= delta * scrollSpeed;
@@ -110,7 +124,7 @@ export class GameApp {
     this.app = new PIXI.Application({
       width,
       height,
-      backgroundColor: 0xffffff,
+      backgroundColor: 0x0254EC,
       antialias: false,
       resolution: 3
     });
@@ -120,7 +134,7 @@ export class GameApp {
     GameApp.GroundPosition = height - 1;
     GameApp.Width = width - 1;
 
-     // Hack for parcel HMR
+    // Hack for parcel HMR
     parent.replaceChild(this.app.view, parent.lastElementChild);
 
     window.onkeydown = (ev: KeyboardEvent): any => {
@@ -147,13 +161,16 @@ export class GameApp {
           " - Max Score: " +
           Math.ceil(GameApp.MaxScore);
       } else {
-        if (GameApp.Score == 0) {GameApp.ScoreText.text = "Press spacebar or touch screen to start!"; return;};
+        if (GameApp.Score == 0) {
+          GameApp.ScoreText.text = "Press spacebar or touch screen to start!"; 
+          return;
+        };
         GameApp.ScoreText.text =
-        "Game over! You scored " +
-        Math.ceil(GameApp.Score) +
-        ". Max Score: " +
-        Math.ceil(GameApp.MaxScore) +
-        ". Press spacebar or touch to restart.";
+          "Game over! You scored " +
+          Math.ceil(GameApp.Score) +
+          ". Max Score: " +
+          Math.ceil(GameApp.MaxScore) +
+          ". Press spacebar or touch to restart.";
       }
     });
   }
@@ -169,11 +186,21 @@ export class GameApp {
 
     let myGraph = new PIXI.Graphics();
     myGraph.position.set(0, 75);
-    myGraph.lineStyle(2, 0x000000).lineTo(300, 0);
+    myGraph.lineStyle(10, 0xFFBFD6).lineTo(300, 0);
 
     GameApp.Stage.addChild(myGraph);
     this.ScoreNextObstacle = 0;
     GameApp.Stage.addChild(GameApp.ScoreText);
+  }
+
+  static getRandomBadObstacle() {
+    const badObstacleSprites = ['kafa'];
+    return badObstacleSprites[Math.floor(Math.random() * badObstacleSprites.length)];
+  }
+
+  static getRandomGoodObstacle() {
+    const goodObstacleSprites = ['docker'];
+    return goodObstacleSprites[Math.floor(Math.random() * goodObstacleSprites.length)];
   }
 
   static Update(delta: number) {
@@ -181,23 +208,33 @@ export class GameApp {
       for (let i = 0; i < GameApp.ActiveEntities.length; i++) {
         const currentEntity = GameApp.ActiveEntities[i];
         currentEntity.Update(delta, GameApp.ActiveEntities);
-
+  
         if (currentEntity.sprite.x < -20) {
           currentEntity.sprite.destroy();
           GameApp.ActiveEntities.splice(i, 1);
         }
       }
       this.Score += (delta) / 6;
-
+  
       if (this.Score > this.MaxScore) this.MaxScore = this.Score;
       if (GameApp.ShouldPlaceWorldObject()) {
-        GameApp.AddObject(
-          Math.random() < 0.75 ? "obstacleGrave" : "obstaclePumpkin",
-          GameApp.GroundPosition,
-          true
-        );
+        // Generate a bad obstacle on the ground
 
-        GameApp.AddObject("cloud", 20, false);
+        let isGoodObstacle = Math.random() < 0.5;
+        if (!isGoodObstacle){
+          GameApp.AddObject(
+            GameApp.getRandomBadObstacle(),
+            GameApp.GroundPosition,
+            true,
+            'bad'
+          );
+        }
+        // Generate a good obstacle as a cloud
+        else{
+          GameApp.AddObject(GameApp.getRandomGoodObstacle(), GameApp.GroundPosition, false, 'good'); 
+        }
+
+        GameApp.AddObject("cloud", 20, false, 'good');
         this.ScoreNextObstacle += this.GetScoreNextObstacle();
       }
     } else {
@@ -206,9 +243,9 @@ export class GameApp {
         this.SetupGame();
       }
     }
-
+  
     GameApp.PressedSpace = false;
-  }
+  }  
 
   static ShouldPlaceWorldObject(): boolean {
     return this.Score >= this.ScoreNextObstacle;
@@ -216,20 +253,23 @@ export class GameApp {
 
   static GetScoreNextObstacle(): number {
     let minimumDistance = 25;
+    let maximumDistance = 50; // Adjust this value for larger gaps if needed
     let difficulty = Math.min(this.Score / 100, 5);
-    return Math.random() * 10 - difficulty * 4 + minimumDistance;
+    return minimumDistance + Math.random() * (maximumDistance - minimumDistance) - difficulty * 4;
   }
-
+  
   private static AddObject(
     spriteName: string,
     height: number,
-    isSolid: boolean
+    isSolid: boolean,
+    type: 'good' | 'bad'
   ) {
     let obstacle = new ScrollingObject(
       spriteName,
       GameApp.Width,
       height,
-      isSolid
+      isSolid,
+      type
     );
     GameApp.ActiveEntities.push(obstacle);
     GameApp.Stage.addChild(obstacle.sprite);
