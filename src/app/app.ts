@@ -52,7 +52,13 @@ class Player {
     for (const currentEntity of GameApp.ActiveEntities) {
       if (this.collidesWith(currentEntity.sprite)) {
         if (isScrollingObject(currentEntity) && currentEntity.type === 'good') {
-          GameApp.Score += 10; // Increment score for good obstacles
+    
+          // Check if the good obstacle is not a cloud
+          if (!currentEntity.isCloud) {
+            GameApp.Score += 10; // Increment score for good non-cloud obstacles
+            GameApp.showFloatingText("+10", currentEntity.sprite.x, currentEntity.sprite.y);
+          }
+    
           GameApp.Stage.removeChild(currentEntity.sprite);
           GameApp.ActiveEntities.splice(GameApp.ActiveEntities.indexOf(currentEntity), 1);
         } else if (isScrollingObject(currentEntity) && currentEntity.type === 'bad' && currentEntity.solid) {
@@ -73,6 +79,7 @@ class ScrollingObject {
   airborne: boolean;
   solid: boolean = true;
   type: 'good' | 'bad'; // Add type property
+  isCloud: boolean; // Add isCloud property
 
   public constructor(
     spriteName: string,
@@ -87,6 +94,8 @@ class ScrollingObject {
     this.sprite.x = x;
     this.solid = isSolid;
     this.type = type; // Set the type
+    this.isCloud = spriteName === "cloud"; // Set isCloud based on spriteName
+
   }
 
   public Update(delta: number) {
@@ -116,7 +125,7 @@ export class GameApp {
   static ScoreNextObstacle = 0;
   static Score: number = 0;
   static MaxScore = 0;
-
+  static FloatingTexts: Array<{ text: PIXI.Text, elapsed: number }> = [];
   static GroundPosition = 0;
   static Width = 0;
 
@@ -237,6 +246,7 @@ export class GameApp {
         GameApp.AddObject("cloud", 20, false, 'good');
         this.ScoreNextObstacle += this.GetScoreNextObstacle();
       }
+      GameApp.updateFloatingTexts(delta); // Update floating texts
     } else {
       if (GameApp.PressedSpace) {
         this.GameOver = false;
@@ -256,6 +266,38 @@ export class GameApp {
     let maximumDistance = 50; // Adjust this value for larger gaps if needed
     let difficulty = Math.min(this.Score / 100, 5);
     return minimumDistance + Math.random() * (maximumDistance - minimumDistance) - difficulty * 4;
+  }
+  
+  static showFloatingText(text: string, x: number, y: number) {
+    let floatingText = new PIXI.Text(text, {
+      fontSize: 8,
+      fill: "#ffffff",
+      align: "center",
+      stroke: "#000000",
+      strokeThickness: 2
+    });
+  
+    floatingText.x = x;
+    floatingText.y = y;
+    GameApp.Stage.addChild(floatingText);
+  
+    GameApp.FloatingTexts.push({ text: floatingText, elapsed: 0 });
+  }
+  
+  static updateFloatingTexts(delta: number) {
+    const fadeOutTime = 60; // Duration for the fade-out effect in frames
+  
+    for (let i = GameApp.FloatingTexts.length - 1; i >= 0; i--) {
+      const floatingTextObj = GameApp.FloatingTexts[i];
+      floatingTextObj.elapsed += delta;
+      floatingTextObj.text.y -= 0.5; // Move the text upwards
+      floatingTextObj.text.alpha = 1 - (floatingTextObj.elapsed / fadeOutTime); // Fade out the text
+  
+      if (floatingTextObj.elapsed >= fadeOutTime) {
+        GameApp.Stage.removeChild(floatingTextObj.text);
+        GameApp.FloatingTexts.splice(i, 1);
+      }
+    }
   }
   
   private static AddObject(
